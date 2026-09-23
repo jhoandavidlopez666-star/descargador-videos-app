@@ -13,7 +13,8 @@
         input:focus { border-color: #007bff; }
         button { padding: 12px 25px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: 95%; transition: 0.3s; }
         button:hover { background-color: #0056b3; }
-        #mensaje { margin-top: 15px; color: #d9534f; font-weight: bold; }
+        #resultado { margin-top: 15px; font-weight: bold; }
+        .download-btn { display: inline-block; margin-top: 15px; padding: 12px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -21,20 +22,46 @@
         <h2>Descarga Sin Marca de Agua</h2>
         <p>Pega el enlace de TikTok, Instagram, YouTube o Facebook</p>
         <input type="text" id="videoLink" placeholder="Ej: https://www.tiktok.com/@usuario/video/123...">
-        <button onclick="prepararDescarga()">Obtener Video</button>
-        <p id="mensaje"></p>
+        <button onclick="obtenerVideo()">Obtener Video</button>
+        <div id="resultado"></div>
     </div>
 
     <script>
-        function prepararDescarga() {
+        // Dirección de tu servidor backend alojado en Render
+        const RENDER_URL = "https://descargador-videos-app.onrender.com/extract";
+
+        async function obtenerVideo() {
             let link = document.getElementById('videoLink').value;
+            let resultadoDiv = document.getElementById('resultado');
+
             if(link === "") {
-                document.getElementById('mensaje').innerText = "Por favor, pega un enlace válido.";
+                resultadoDiv.innerHTML = "<p style='color:red;'>Por favor, pega un enlace válido.</p>";
                 return;
             }
-            // Aquí conectaremos el servidor de Python (Render) más adelante
-            document.getElementById('mensaje').style.color = "#28a745";
-            document.getElementById('mensaje').innerText = "Procesando enlace... (Próximamente conectaremos el motor)";
+
+            resultadoDiv.innerHTML = "<p style='color:#007bff;'>Procesando video... Esto puede tomar unos segundos.</p>";
+
+            try {
+                let response = await fetch(RENDER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: link })
+                });
+
+                let data = await response.json();
+
+                if (data.success) {
+                    resultadoDiv.innerHTML = `
+                        <p style='color:green;'>¡Video listo!</p>
+                        <p><strong>${data.title}</strong></p>
+                        <a href="${data.download_url}" target="_blank" download class="download-btn">DESCARGAR VIDEO</a>
+                    `;
+                } else {
+                    resultadoDiv.innerHTML = `<p style='color:red;'>Error: ${data.error}</p>`;
+                }
+            } catch (error) {
+                resultadoDiv.innerHTML = "<p style='color:red;'>Error de conexión con el servidor.</p>";
+            }
         }
     </script>
 </body>
