@@ -14,43 +14,54 @@ def extract_video():
     if not url:
         return jsonify({'error': 'Por favor ingresa una URL válida.'}), 400
 
-    try:
-        # Resolver redirecciones de links cortos (vt.tiktok.com, etc.)
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-        session = requests.Session()
-        res_redirect = session.get(url, headers=headers, allow_redirects=True, timeout=8)
-        clean_url = res_redirect.url if res_redirect.url else url
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
 
-        # Petición a la API pública de extracción
+    try:
+        # 1. Si es TikTok (acepta enlaces cortos vt.tiktok.com y enlaces completos)
+        if "tiktok.com" in url:
+            tikwm_url = f"https://www.tikwm.com/api/?url={url}"
+            res = requests.get(tikwm_url, headers=headers, timeout=10)
+            res_json = res.json()
+
+            if res_json.get("code") == 0 and "data" in res_json:
+                # Video sin marca de agua
+                video_url = res_json["data"].get("play")
+                if video_url and not video_url.startswith("http"):
+                    video_url = "https://www.tikwm.com" + video_url
+
+                return jsonify({
+                    'success': True,
+                    'title': res_json["data"].get("title", "Video de TikTok"),
+                    'download_url': video_url
+                })
+
+        # 2. Respaldo multi-plataforma (Cobalt con headers de API v10)
         cobalt_headers = {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
         }
         payload = {
-            "url": clean_url,
+            "url": url,
             "vCodec": "h264"
         }
 
-        response = requests.post("https://api.cobalt.tools/api/json", json=payload, headers=cobalt_headers)
-        res_data = response.json()
+        res_cobalt = requests.post("https://api.cobalt.tools/api/json", json=payload, headers=cobalt_headers, timeout=12)
+        
+        if res_cobalt.status_code == 200:
+            c_data = res_cobalt.json()
+            download_link = c_data.get("url") or (c_data.get("picker")[0]["url"] if c_data.get("picker") else None)
+            
+            if download_link:
+                return jsonify({
+                    'success': True,
+                    'title': 'Video listo para descargar',
+                    'download_url': download_link
+                })
 
-        if response.status_code == 200 and "url" in res_data:
-            return jsonify({
-                'success': True,
-                'title': '¡Video listo!',
-                'download_url': res_data['url']
-            })
-        elif "picker" in res_data and len(res_data["picker"]) > 0:
-            return jsonify({
-                'success': True,
-                'title': '¡Video listo!',
-                'download_url': res_data["picker"][0]["url"]
-            })
-        else:
-            return jsonify({'error': 'No se pudo obtener el enlace. Asegúrate de que el video sea público.'}), 400
+        return jsonify({'error': 'No se pudo obtener el enlace. Asegúrate de que el video sea público.'}), 400
 
     except Exception as e:
         return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
