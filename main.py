@@ -15,14 +15,19 @@ def extract_video():
         return jsonify({'error': 'Por favor ingresa una URL válida.'}), 400
 
     try:
-        # Petición a servicio externo de extracción universal sin costo
-        api_url = f"https://api.cobalt.tools/api/json"
+        # Resolver redirecciones para enlaces cortos como vt.tiktok.com o youtu.be
+        session = requests.Session()
+        res_redirect = session.head(url, allow_redirects=True, timeout=5)
+        final_url = res_redirect.url if res_redirect.url else url
+
+        # Petición a la API de Cobalt
+        api_url = "https://api.cobalt.tools/api/json"
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
         payload = {
-            "url": url,
+            "url": final_url,
             "vCodec": "h264"
         }
 
@@ -34,6 +39,14 @@ def extract_video():
                 'success': True,
                 'title': 'Video listo para descargar',
                 'download_url': res_data['url']
+            })
+        elif "picker" in res_data:
+            # En caso de que sea un carrusel de imágenes o varias opciones
+            first_media = res_data["picker"][0]["url"]
+            return jsonify({
+                'success': True,
+                'title': 'Contenido listo para descargar',
+                'download_url': first_media
             })
         else:
             return jsonify({'error': 'No se pudo obtener el video de este enlace. Verifica que sea público.'}), 400
