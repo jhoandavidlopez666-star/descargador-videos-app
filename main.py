@@ -15,41 +15,42 @@ def extract_video():
         return jsonify({'error': 'Por favor ingresa una URL válida.'}), 400
 
     try:
-        # Resolver redirecciones para enlaces cortos como vt.tiktok.com o youtu.be
-        session = requests.Session()
-        res_redirect = session.head(url, allow_redirects=True, timeout=5)
-        final_url = res_redirect.url if res_redirect.url else url
-
-        # Petición a la API de Cobalt
-        api_url = "https://api.cobalt.tools/api/json"
+        # Resolver redirecciones de links cortos (vt.tiktok.com, etc.)
         headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        session = requests.Session()
+        res_redirect = session.get(url, headers=headers, allow_redirects=True, timeout=8)
+        clean_url = res_redirect.url if res_redirect.url else url
+
+        # Petición a la API pública de extracción
+        cobalt_headers = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         payload = {
-            "url": final_url,
+            "url": clean_url,
             "vCodec": "h264"
         }
 
-        response = requests.post(api_url, json=payload, headers=headers)
+        response = requests.post("https://api.cobalt.tools/api/json", json=payload, headers=cobalt_headers)
         res_data = response.json()
 
         if response.status_code == 200 and "url" in res_data:
             return jsonify({
                 'success': True,
-                'title': 'Video listo para descargar',
+                'title': '¡Video listo!',
                 'download_url': res_data['url']
             })
-        elif "picker" in res_data:
-            # En caso de que sea un carrusel de imágenes o varias opciones
-            first_media = res_data["picker"][0]["url"]
+        elif "picker" in res_data and len(res_data["picker"]) > 0:
             return jsonify({
                 'success': True,
-                'title': 'Contenido listo para descargar',
-                'download_url': first_media
+                'title': '¡Video listo!',
+                'download_url': res_data["picker"][0]["url"]
             })
         else:
-            return jsonify({'error': 'No se pudo obtener el video de este enlace. Verifica que sea público.'}), 400
+            return jsonify({'error': 'No se pudo obtener el enlace. Asegúrate de que el video sea público.'}), 400
 
     except Exception as e:
         return jsonify({'error': f'Error en el servidor: {str(e)}'}), 500
